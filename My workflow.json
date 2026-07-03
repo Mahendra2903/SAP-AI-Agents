@@ -1,0 +1,176 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "8e6fa889-a254-4a17-ae4e-8e231ff90e3f",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "eaf7421a-374c-410c-b560-9539a406ad0a",
+              "name": "from_email",
+              "value": "vendor@acmesupplies.com",
+              "type": "string"
+            },
+            {
+              "id": "df93b272-7fd1-4e15-8f35-2a669fb0851a",
+              "name": "subject",
+              "value": "Invoice INV-2024-0042 - Payment Status?",
+              "type": "string"
+            },
+            {
+              "id": "9e7e9180-69ca-48f7-b153-6960bdbfd5d0",
+              "name": "vendor_name",
+              "value": "Acme Supplies",
+              "type": "string"
+            },
+            {
+              "id": "23f577ad-9a80-4af4-a606-f4490d4c5d5c",
+              "name": "email_body",
+              "value": "Hi, I wanted to follow up on invoice INV-2024-0042 for $4,500 submitted on June 1st. Could you please confirm the payment status and expected payment date? Thank you.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        208,
+        0
+      ],
+      "id": "218f04f0-df6c-4936-a122-de632d1c0068",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "models/gemini-3-flash-preview"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are an AP (Accounts Payable) assistant for a company using SAP B1.\n\nA vendor has sent the following email:\n\nFrom: {{ $json.from_email }}\nVendor: {{ $json.vendor_name }}\nSubject: {{ $json.subject }}\nMessage: {{ $json.email_body }}\n\nBased on this email, do two things:\n1. Identify what the vendor is asking about (payment status, invoice confirmation, payment date, or other)\n2. Draft a professional, friendly reply email acknowledging their query and letting them know the AP team will verify the details in SAP B1 and respond within 1 business day.\n\nFormat your response as:\nQUERY TYPE: [what they're asking]\nREPLY EMAIL: [the full draft reply]"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "90b6649e-9728-4edd-ba6e-6c44e1888602",
+      "name": "Message a model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "3AUxUIxVg1NhedzG",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const geminiOutput = $('Message a model').first().json.content.parts[0].text;\n\nconst sapFound = $('Code').first().json.found;\nconst invoiceNumber = $('Code').first().json.invoice_number;\nconst vendorName = $('Code').first().json.vendor_name;\nconst amount = $('Code').first().json.amount;\nconst submittedDate = $('Code').first().json.submitted_date;\nconst status = $('Code').first().json.status;\nconst expectedPayment = $('Code').first().json.expected_payment_date;\nconst paymentTerms = $('Code').first().json.payment_terms;\n\nlet finalResponse = '';\n\nif (sapFound) {\n  finalResponse = `SAP B1 INVOICE LOOKUP RESULT:\n------------------------------\nInvoice Number: ${invoiceNumber}\nVendor: ${vendorName}\nAmount: $${amount}\nSubmitted: ${submittedDate}\nStatus: ${status}\nExpected Payment: ${expectedPayment}\nPayment Terms: ${paymentTerms}\n\n------------------------------\nAI DRAFTED REPLY TO VENDOR:\n------------------------------\n${geminiOutput}`;\n} else {\n  finalResponse = `SAP B1 LOOKUP: Invoice not found in system.\n\nAI DRAFTED REPLY TO VENDOR:\n------------------------------\n${geminiOutput}`;\n}\n\nreturn { final_output: finalResponse };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        976,
+        0
+      ],
+      "id": "95c888a5-ae5c-4711-bdf0-420237993f22",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const invoiceDatabase = [\n  {\n    invoice_number: \"INV-2024-0042\",\n    vendor_name: \"Acme Supplies\",\n    amount: 4500,\n    submitted_date: \"2024-06-01\",\n    status: \"Approved\",\n    expected_payment_date: \"2024-07-15\",\n    payment_terms: \"Net 45\"\n  },\n  {\n    invoice_number: \"INV-2024-0038\",\n    vendor_name: \"Global Parts Co\",\n    amount: 12750,\n    submitted_date: \"2024-05-20\",\n    status: \"Pending Approval\",\n    expected_payment_date: \"TBD\",\n    payment_terms: \"Net 30\"\n  },\n  {\n    invoice_number: \"INV-2024-0051\",\n    vendor_name: \"Tech Solutions Ltd\",\n    amount: 8200,\n    submitted_date: \"2024-06-10\",\n    status: \"Payment Scheduled\",\n    expected_payment_date: \"2024-07-05\",\n    payment_terms: \"Net 30\"\n  }\n];\n\nconst emailBody = $('Edit Fields').first().json.email_body;\nconst vendorName = $('Edit Fields').first().json.vendor_name;\n\nconst invoiceMatch = emailBody.match(/INV-\\d{4}-\\d{4}/);\nconst invoiceNumber = invoiceMatch ? invoiceMatch[0] : null;\n\nconst invoiceData = invoiceDatabase.find(inv => \n  inv.invoice_number === invoiceNumber || \n  inv.vendor_name === vendorName\n);\n\nif (invoiceData) {\n  return { found: true, ...invoiceData };\n} else {\n  return { \n    found: false, \n    message: \"Invoice not found in SAP B1 system\" \n  };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        0
+      ],
+      "id": "216ce38d-c312-46c9-9ee9-8c70abc1f5be",
+      "name": "Code"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "99253986-2adf-4b41-9b4b-936202cab22d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "0ce2d5de711dd75f8106837a2983d286b9d659d9c74388ee638a3b62ec352288"
+  },
+  "nodeGroups": [],
+  "id": "UPqhCBdyMI9Q2Bpd",
+  "tags": []
+}
