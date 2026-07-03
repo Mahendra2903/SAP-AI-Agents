@@ -1,0 +1,495 @@
+{
+  "updatedAt": "2026-07-03T16:42:06.687Z",
+  "createdAt": "2026-07-03T14:15:53.258Z",
+  "id": "UPqhCBdyMI9Q2Bpd",
+  "name": "My workflow",
+  "description": "# SAP AI Agents\n\nAI-powered automation agents built for mid-market SAP shops \n(SAP B1 / ByDesign) using n8n and Google Gemini.\n\n## Invoice Email Responder\nAutomatically reads vendor invoice emails, looks up status \nin SAP B1, and drafts a professional reply — saving AP teams \n5-10 hours per week.\n\n**Stack:** n8n · Google Gemini API · SAP B1 Service Layer (mock)\n\n**To use:** Import the workflow JSON into your n8n instance \nand connect your Gemini API key.",
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "eaf7421a-374c-410c-b560-9539a406ad0a",
+              "name": "from_email",
+              "value": "{{ $json.from }}",
+              "type": "string"
+            },
+            {
+              "id": "df93b272-7fd1-4e15-8f35-2a669fb0851a",
+              "name": "subject",
+              "value": "{{ $json.subject }}",
+              "type": "string"
+            },
+            {
+              "id": "9e7e9180-69ca-48f7-b153-6960bdbfd5d0",
+              "name": "vendor_name",
+              "value": "{{ $json.from.split('@')[0] }}",
+              "type": "string"
+            },
+            {
+              "id": "23f577ad-9a80-4af4-a606-f4490d4c5d5c",
+              "name": "email_body",
+              "value": "={{ $('Gmail Trigger').first().json.snippet }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        208,
+        0
+      ],
+      "id": "218f04f0-df6c-4936-a122-de632d1c0068",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "models/gemini-3-flash-preview"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are an AP (Accounts Payable) assistant for a company using SAP B1.\n\nA vendor has sent the following email:\n\nFrom: {{ $('Edit Fields').first().json.from_email }}\nSubject: {{ $('Gmail Trigger').first().json.Subject }}\nMessage: {{ $('Edit Fields').first().json.email_body }}\n\nWrite ONLY a professional reply email with:\n- A greeting using the vendor's name\n- Confirm you received their inquiry about invoice payment status\n- Let them know the AP team is verifying the details in SAP B1\n- Tell them they will receive a full update within 1 business day\n- A polite closing signed \"Accounts Payable Team\"\n\nWrite only the email body. No labels, no subject line, no extra formatting."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "90b6649e-9728-4edd-ba6e-6c44e1888602",
+      "name": "Message a model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "3AUxUIxVg1NhedzG",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const geminiRaw = $('Message a model').first().json.content.parts[0].text;\nconst sapFound = $('Code').first().json.found;\nconst invoiceNumber = $('Code').first().json.invoice_number;\nconst vendorName = $('Code').first().json.vendor_name;\nconst amount = $('Code').first().json.amount;\nconst submittedDate = $('Code').first().json.submitted_date;\nconst status = $('Code').first().json.status;\nconst expectedPayment = $('Code').first().json.expected_payment_date;\nconst paymentTerms = $('Code').first().json.payment_terms;\n\nconst vendorEmail = $('Gmail Trigger').first().json.From.match(/<(.+)>/)[1];\n\nconst cleanReply = geminiRaw\n  .replace('{{ $json.from }}', vendorEmail)\n  .replace(/\\{\\{.*?\\}\\}/g, '')\n  .replace(/\\n/g, '<br>');\n\nlet finalResponse = '';\n\nif (sapFound) {\n  finalResponse = `\n<p><strong>SAP B1 Invoice Lookup:</strong><br>\nInvoice: ${invoiceNumber} &nbsp;|&nbsp; \nVendor: ${vendorName} &nbsp;|&nbsp; \nAmount: $${amount}<br>\nSubmitted: ${submittedDate} &nbsp;|&nbsp; \nStatus: <strong>${status}</strong> &nbsp;|&nbsp; \nExpected Payment: <strong>${expectedPayment}</strong> &nbsp;|&nbsp; \nTerms: ${paymentTerms}</p>\n<hr>\n${cleanReply}\n  `.trim();\n} else {\n  finalResponse = `\n<p>Invoice not found in SAP B1 system.</p>\n<hr>\n${cleanReply}\n  `.trim();\n}\n\nreturn { final_output: finalResponse };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        976,
+        0
+      ],
+      "id": "95c888a5-ae5c-4711-bdf0-420237993f22",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const invoiceDatabase = [\n  {\n    invoice_number: \"INV-2024-0042\",\n    vendor_name: \"Acme Supplies\",\n    amount: 4500,\n    submitted_date: \"2024-06-01\",\n    status: \"Approved\",\n    expected_payment_date: \"2024-07-15\",\n    payment_terms: \"Net 45\"\n  },\n  {\n    invoice_number: \"INV-2024-0038\",\n    vendor_name: \"Global Parts Co\",\n    amount: 12750,\n    submitted_date: \"2024-05-20\",\n    status: \"Pending Approval\",\n    expected_payment_date: \"TBD\",\n    payment_terms: \"Net 30\"\n  },\n  {\n    invoice_number: \"INV-2024-0051\",\n    vendor_name: \"Tech Solutions Ltd\",\n    amount: 8200,\n    submitted_date: \"2024-06-10\",\n    status: \"Payment Scheduled\",\n    expected_payment_date: \"2024-07-05\",\n    payment_terms: \"Net 30\"\n  }\n];\n\nconst emailBody = $('Edit Fields').first().json.email_body || $('Gmail Trigger').first().json.snippet || '';\nconst vendorName = $('Edit Fields').first().json.vendor_name;\n\nconst invoiceMatch = emailBody.match(/INV-\\d{4}-\\d{4}/);\nconst invoiceNumber = invoiceMatch ? invoiceMatch[0] : null;\n\nconst invoiceData = invoiceDatabase.find(inv => \n  inv.invoice_number === invoiceNumber || \n  inv.vendor_name === vendorName\n);\n\nif (invoiceData) {\n  return { found: true, ...invoiceData };\n} else {\n  return { \n    found: false, \n    message: \"Invoice not found in SAP B1 system\" \n  };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        0
+      ],
+      "id": "216ce38d-c312-46c9-9ee9-8c70abc1f5be",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "readStatus": "unread",
+          "sender": "mahendra.reddy2903@gmail.com"
+        }
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ],
+      "id": "4090b162-6ba1-4084-81ca-30aa6a756a5e",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2G6fGIxqwCBq12jf",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Gmail Trigger').first().json.From.match(/<(.+)>/)[1] }}",
+        "subject": "=RE: {{ $('Gmail Trigger').first().json.Subject }}",
+        "message": "={{ $('Code in JavaScript1').first().json.final_output }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1184,
+        0
+      ],
+      "id": "5fa552c1-30b2-4629-87b5-424bddd56ecd",
+      "name": "Send a message",
+      "webhookId": "6b2da266-7221-4d6b-9643-2b56dec509cf",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2G6fGIxqwCBq12jf",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "staticData": {
+    "node:Gmail Trigger": {
+      "Gmail Trigger": {
+        "lastTimeChecked": 1783095110
+      }
+    }
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "e7865b6f-b9d1-45ec-a98b-17091953f729",
+  "activeVersionId": "5cc4c983-2351-4a0f-a208-5616ca47546e",
+  "versionCounter": 66,
+  "triggerCount": 1,
+  "sourceWorkflowId": null,
+  "tags": [],
+  "parentFolder": null,
+  "activeVersion": {
+    "updatedAt": "2026-07-03T16:11:50.000Z",
+    "createdAt": "2026-07-03T16:10:13.740Z",
+    "versionId": "5cc4c983-2351-4a0f-a208-5616ca47546e",
+    "workflowId": "UPqhCBdyMI9Q2Bpd",
+    "nodes": [
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "eaf7421a-374c-410c-b560-9539a406ad0a",
+                "name": "from_email",
+                "value": "{{ $json.from }}",
+                "type": "string"
+              },
+              {
+                "id": "df93b272-7fd1-4e15-8f35-2a669fb0851a",
+                "name": "subject",
+                "value": "{{ $json.subject }}",
+                "type": "string"
+              },
+              {
+                "id": "9e7e9180-69ca-48f7-b153-6960bdbfd5d0",
+                "name": "vendor_name",
+                "value": "{{ $json.from.split('@')[0] }}",
+                "type": "string"
+              },
+              {
+                "id": "23f577ad-9a80-4af4-a606-f4490d4c5d5c",
+                "name": "email_body",
+                "value": "={{ $json.text }}",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          208,
+          0
+        ],
+        "id": "218f04f0-df6c-4936-a122-de632d1c0068",
+        "name": "Edit Fields"
+      },
+      {
+        "parameters": {
+          "modelId": {
+            "__rl": true,
+            "mode": "list",
+            "value": "models/gemini-3-flash-preview"
+          },
+          "messages": {
+            "values": [
+              {
+                "content": "=You are an AP (Accounts Payable) assistant for a company using SAP B1.\n\nA vendor has sent the following email:\n\nFrom: {{ $json.from_email }}\nVendor: {{ $json.vendor_name }}\nSubject: {{ $json.subject }}\nMessage: {{ $json.email_body }}\n\nBased on this email, do two things:\n1. Identify what the vendor is asking about (payment status, invoice confirmation, payment date, or other)\n2. Draft a professional, friendly reply email acknowledging their query and letting them know the AP team will verify the details in SAP B1 and respond within 1 business day.\n\nFormat your response as:\nQUERY TYPE: [what they're asking]\nREPLY EMAIL: [the full draft reply]"
+              }
+            ]
+          },
+          "builtInTools": {},
+          "options": {}
+        },
+        "type": "@n8n/n8n-nodes-langchain.googleGemini",
+        "typeVersion": 1.2,
+        "position": [
+          416,
+          0
+        ],
+        "id": "90b6649e-9728-4edd-ba6e-6c44e1888602",
+        "name": "Message a model",
+        "credentials": {
+          "googlePalmApi": {
+            "id": "3AUxUIxVg1NhedzG",
+            "name": "Google Gemini(PaLM) Api account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const geminiOutput = $('Message a model').first().json.content.parts[0].text;\n\nconst sapFound = $('Code').first().json.found;\nconst invoiceNumber = $('Code').first().json.invoice_number;\nconst vendorName = $('Code').first().json.vendor_name;\nconst amount = $('Code').first().json.amount;\nconst submittedDate = $('Code').first().json.submitted_date;\nconst status = $('Code').first().json.status;\nconst expectedPayment = $('Code').first().json.expected_payment_date;\nconst paymentTerms = $('Code').first().json.payment_terms;\n\nlet finalResponse = '';\n\nif (sapFound) {\n  finalResponse = `SAP B1 INVOICE LOOKUP RESULT:\n------------------------------\nInvoice Number: ${invoiceNumber}\nVendor: ${vendorName}\nAmount: $${amount}\nSubmitted: ${submittedDate}\nStatus: ${status}\nExpected Payment: ${expectedPayment}\nPayment Terms: ${paymentTerms}\n\n------------------------------\nAI DRAFTED REPLY TO VENDOR:\n------------------------------\n${geminiOutput}`;\n} else {\n  finalResponse = `SAP B1 LOOKUP: Invoice not found in system.\n\nAI DRAFTED REPLY TO VENDOR:\n------------------------------\n${geminiOutput}`;\n}\n\nreturn { final_output: finalResponse };"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          976,
+          0
+        ],
+        "id": "95c888a5-ae5c-4711-bdf0-420237993f22",
+        "name": "Code in JavaScript1"
+      },
+      {
+        "parameters": {
+          "jsCode": "const invoiceDatabase = [\n  {\n    invoice_number: \"INV-2024-0042\",\n    vendor_name: \"Acme Supplies\",\n    amount: 4500,\n    submitted_date: \"2024-06-01\",\n    status: \"Approved\",\n    expected_payment_date: \"2024-07-15\",\n    payment_terms: \"Net 45\"\n  },\n  {\n    invoice_number: \"INV-2024-0038\",\n    vendor_name: \"Global Parts Co\",\n    amount: 12750,\n    submitted_date: \"2024-05-20\",\n    status: \"Pending Approval\",\n    expected_payment_date: \"TBD\",\n    payment_terms: \"Net 30\"\n  },\n  {\n    invoice_number: \"INV-2024-0051\",\n    vendor_name: \"Tech Solutions Ltd\",\n    amount: 8200,\n    submitted_date: \"2024-06-10\",\n    status: \"Payment Scheduled\",\n    expected_payment_date: \"2024-07-05\",\n    payment_terms: \"Net 30\"\n  }\n];\n\nconst emailBody = $('Edit Fields').first().json.email_body;\nconst vendorName = $('Edit Fields').first().json.vendor_name;\n\nconst invoiceMatch = emailBody.match(/INV-\\d{4}-\\d{4}/);\nconst invoiceNumber = invoiceMatch ? invoiceMatch[0] : null;\n\nconst invoiceData = invoiceDatabase.find(inv => \n  inv.invoice_number === invoiceNumber || \n  inv.vendor_name === vendorName\n);\n\nif (invoiceData) {\n  return { found: true, ...invoiceData };\n} else {\n  return { \n    found: false, \n    message: \"Invoice not found in SAP B1 system\" \n  };\n}"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          768,
+          0
+        ],
+        "id": "216ce38d-c312-46c9-9ee9-8c70abc1f5be",
+        "name": "Code"
+      },
+      {
+        "parameters": {
+          "pollTimes": {
+            "item": [
+              {
+                "mode": "everyMinute"
+              }
+            ]
+          },
+          "filters": {
+            "readStatus": "unread",
+            "sender": "mahendra.reddy2903@gmail.com"
+          }
+        },
+        "type": "n8n-nodes-base.gmailTrigger",
+        "typeVersion": 1.4,
+        "position": [
+          0,
+          0
+        ],
+        "id": "4090b162-6ba1-4084-81ca-30aa6a756a5e",
+        "name": "Gmail Trigger",
+        "credentials": {
+          "gmailOAuth2": {
+            "id": "2G6fGIxqwCBq12jf",
+            "name": "Gmail OAuth2 API"
+          }
+        }
+      }
+    ],
+    "connections": {
+      "Edit Fields": {
+        "main": [
+          [
+            {
+              "node": "Message a model",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Message a model": {
+        "main": [
+          [
+            {
+              "node": "Code",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code": {
+        "main": [
+          [
+            {
+              "node": "Code in JavaScript1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Gmail Trigger": {
+        "main": [
+          [
+            {
+              "node": "Edit Fields",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": [],
+    "authors": "Mahendra Palle",
+    "name": "Gmail Triggered Workflow - SAP AI Agent",
+    "description": "Now testing with giving the gmail triggers.",
+    "autosaved": true,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-07-03T16:11:50.785Z",
+        "id": 1,
+        "workflowId": "UPqhCBdyMI9Q2Bpd",
+        "versionId": "5cc4c983-2351-4a0f-a208-5616ca47546e",
+        "event": "activated",
+        "userId": "8bb65fd5-a25a-476d-ad24-bdf0781886a7"
+      }
+    ]
+  },
+  "homeProject": {
+    "id": "S9tGDLDI9DYwn2fM",
+    "type": "personal",
+    "name": "Mahendra Palle <mahendrareddyp.29@gmail.com>",
+    "icon": null
+  },
+  "sharedWithProjects": [],
+  "usedCredentials": [
+    {
+      "id": "2G6fGIxqwCBq12jf",
+      "name": "Gmail OAuth2 API",
+      "type": "gmailOAuth2",
+      "currentUserHasAccess": true,
+      "homeProject": {
+        "id": "S9tGDLDI9DYwn2fM",
+        "type": "personal",
+        "name": "Mahendra Palle <mahendrareddyp.29@gmail.com>",
+        "icon": null
+      },
+      "sharedWithProjects": []
+    },
+    {
+      "id": "3AUxUIxVg1NhedzG",
+      "name": "Google Gemini(PaLM) Api account",
+      "type": "googlePalmApi",
+      "currentUserHasAccess": true,
+      "homeProject": {
+        "id": "S9tGDLDI9DYwn2fM",
+        "type": "personal",
+        "name": "Mahendra Palle <mahendrareddyp.29@gmail.com>",
+        "icon": null
+      },
+      "sharedWithProjects": []
+    }
+  ],
+  "scopes": [
+    "execution:reveal",
+    "workflow:create",
+    "workflow:delete",
+    "workflow:disableRedaction",
+    "workflow:enableRedaction",
+    "workflow:execute",
+    "workflow:execute-chat",
+    "workflow:export",
+    "workflow:import",
+    "workflow:list",
+    "workflow:move",
+    "workflow:publish",
+    "workflow:read",
+    "workflow:share",
+    "workflow:unpublish",
+    "workflow:unshare",
+    "workflow:update"
+  ],
+  "checksum": "372489255bb4d77651bc875cff5760e3f000138d7ef9849f1ceae2e6df5e38e7"
+}
